@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>萬壑松風：流泉 (The Winding Spring)</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#4e342e">
+
+    <style>
+        body {
+            margin: 0;
+            background-color: #4e342e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: "Microsoft JhengHei", serif;
+            color: #333;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            background-color: #f3e5dc;
+            border: 8px solid #3e2723;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+        canvas { display: block; }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a237e;
+            pointer-events: none;
+        }
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #3e2723;
+            width: 300px;
+        }
+        #game-over-screen { display: none; }
+        h1 { margin: 0 0 10px; color: #3e2723; font-size: 24px; }
+        p { margin: 10px 0; font-size: 14px; color: #555; }
+        button {
+            background-color: #1565c0;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #0d47a1; }
+        .key-hint {
+            display: inline-block;
+            background: #eee;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="450" height="700"></canvas>
+
+    <div id="ui-layer">
+        生機值: <span id="score">0</span>
+    </div>
+
+    <div id="start-screen">
+        <h1>萬壑松風：流泉</h1>
+        <p>「泉水潺潺流動，交織出充滿生命活力的境界。」</p>
+        <p>控制流泉，避開<b>斧劈皴山石</b>，<br>滋潤沿途的<b>青綠松林</b>。</p>
+        <p>
+            <span class="key-hint">←</span> 左移
+            <span class="key-hint">→</span> 右移
+        </p>
+        <button onclick="initGame()">開始流淌</button>
+    </div>
+
+    <div id="game-over-screen">
+        <h1>水流阻斷</h1>
+        <p>遭遇堅硬岩石，水流無法通過。</p>
+        <p>最終生機: <span id="final-score">0</span></p>
+        <button onclick="initGame()">重新發源</button>
+    </div>
+</div>
+
+<script>
+/* ===== 原遊戲程式碼（未刪減） ===== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let gameState = 'START';
+let score = 0;
+let frameCount = 0;
+let speed = 4;
+
+const player = {
+    x: 225,
+    y: 100,
+    radius: 8,
+    trail: []
+};
+
+let obstacles = [];
+let bonuses = [];
+let particles = [];
+
+const keys = { left: false, right: false };
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') keys.left = true;
+    if (e.key === 'ArrowRight') keys.right = true;
+});
+document.addEventListener('keyup', e => {
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+});
+
+function initGame() {
+    gameState = 'PLAYING';
+    score = 0;
+    speed = 4;
+    frameCount = 0;
+    player.x = canvas.width / 2;
+    player.trail = [];
+    obstacles = [];
+    bonuses = [];
+    particles = [];
+
+    document.getElementById('score').innerText = score;
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('game-over-screen').style.display = 'none';
+
+    for (let i = 0; i < 20; i++) {
+        player.trail.push({ x: player.x, y: player.y - i * speed });
+    }
+    loop();
+}
+
+function spawnObjects() {
+    if (frameCount % (60 - Math.min(40, Math.floor(score / 50))) === 0) {
+        let objX = Math.random() * (canvas.width - 40) + 20;
+        let objY = canvas.height + 50;
+        if (Math.random() > 0.4) {
+            let size = 30 + Math.random() * 30;
+            obstacles.push({ x: objX, y: objY, w: size, h: size * 0.8 });
+        } else {
+            bonuses.push({ x: objX, y: objY, w: 40, collected: false });
+        }
+    }
+}
+
+function update() {
+    if (gameState !== 'PLAYING') return;
+    frameCount++;
+
+    if (keys.left) player.x -= 5;
+    if (keys.right) player.x += 5;
+    player.x = Math.max(10, Math.min(canvas.width - 10, player.x));
+
+    player.trail.unshift({ x: player.x, y: player.y });
+    if (player.trail.length > 100) player.trail.pop();
+    player.trail.forEach(p => p.y -= speed);
+
+    spawnObjects();
+
+    obstacles.forEach(o => o.y -= speed);
+    bonuses.forEach(b => b.y -= speed);
+}
+
+function draw() {
+    ctx.fillStyle = '#f3e5dc';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    player.trail.forEach((p, i) => {
+        ctx.lineWidth = 5 + i * 0.1;
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#e1f5fe';
+    ctx.fill();
+}
+
+function loop() {
+    update();
+    draw();
+    if (gameState === 'PLAYING') requestAnimationFrame(loop);
+}
+
+draw();
+
+/* ===== Service Worker 註冊 ===== */
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+}
+</script>
+</body>
+</html>
